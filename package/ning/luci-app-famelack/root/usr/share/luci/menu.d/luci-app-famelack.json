@@ -1,0 +1,8 @@
+{
+	"admin/services/famelack": {
+		"title": "直播电视",
+		"order": 61,
+		"action": { "type": "view", "path": "famelack/overview" },
+		"depends": { "acl": [ "luci-app-famelack" ] }
+	}
+}

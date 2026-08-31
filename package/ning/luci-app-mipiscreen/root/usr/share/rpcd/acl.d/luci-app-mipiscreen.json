@@ -1,0 +1,29 @@
+{
+	"luci-app-mipiscreen": {
+		"description": "MIPI Screen Control permissions",
+		"read": {
+			"ubus": {
+				"system": [ "board", "info" ],
+				"mipiscreen": [ "get_status" ],
+				"luci-rpc": [ "getHostHints" ]
+			},
+			"uci": [ "mipiscreen" ],
+			"file": {
+				"/sys/class/backlight": [ "list", "read" ],
+				"/sys/class/input": [ "list", "read" ],
+				"/proc/stat": [ "read" ],
+				"/proc/meminfo": [ "read" ]
+			}
+		},
+		"write": {
+			"uci": [ "mipiscreen" ],
+			"ubus": {
+				"mipiscreen": [ "get_status", "set_power", "test_screen", "control_device" ],
+				"service": [ "restart", "start", "stop", "reload" ]
+			},
+			"file": {
+				"/sys/class/backlight": [ "read", "write", "list" ]
+			}
+		}
+	}
+}

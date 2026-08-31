@@ -1,0 +1,7 @@
+{
+	"luci-app-famelack": {
+		"description": "Live TV portal configuration",
+		"read": { "uci": [ "famelack" ] },
+		"write": { "uci": [ "famelack" ] }
+	}
+}

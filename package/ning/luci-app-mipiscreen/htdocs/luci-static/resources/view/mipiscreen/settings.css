@@ -1,0 +1,201 @@
+/* MIPI Screen LuCI - Premium Business Dark Theme */
+:root {
+	--ms-bg-base: #0a0d14;
+	--ms-bg-card: rgba(16, 22, 34, 0.95);
+	--ms-border: rgba(41, 121, 255, 0.25);
+	--ms-primary: #2979ff;
+	--ms-primary-glow: rgba(41, 121, 255, 0.4);
+	--ms-accent: #00e5ff;
+	--ms-text: #f5f6f8;
+	--ms-text-dim: #90a4ae;
+	--ms-success: #00e676;
+	--ms-warn: #ff3d00;
+}
+
+.ms-settings-layout {
+	display: flex;
+	flex-direction: column;
+	gap: 24px;
+	max-width: 1080px;
+	margin: 16px auto 32px;
+	color: var(--ms-text);
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* Override LuCI CBI styling for our app */
+.ms-settings-layout .cbi-section,
+.ms-settings-layout .cbi-map {
+	background: var(--ms-bg-card);
+	border: 1px solid var(--ms-border);
+	border-radius: 16px;
+	box-shadow: 0 12px 36px rgba(0, 0, 0, 0.4);
+	backdrop-filter: blur(10px);
+	padding: 24px;
+}
+
+.ms-card {
+	background: linear-gradient(145deg, rgba(20,28,42,0.95), rgba(12,18,28,0.95));
+	border: 1px solid var(--ms-border);
+	border-radius: 16px;
+	padding: 24px;
+	position: relative;
+	overflow: hidden;
+	box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+}
+
+.ms-card::before {
+	content: "";
+	position: absolute;
+	left: 0;
+	top: 0;
+	right: 0;
+	height: 4px;
+	background: linear-gradient(90deg, var(--ms-primary), var(--ms-accent));
+	box-shadow: 0 0 12px var(--ms-primary-glow);
+}
+
+.ms-card h3 {
+	font-size: 18px;
+	font-weight: 700;
+	margin: 0 0 20px;
+	padding-bottom: 12px;
+	border-bottom: 1px solid rgba(255,255,255,0.06);
+	color: var(--ms-text);
+	letter-spacing: 0.5px;
+}
+
+.ms-status-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+	gap: 16px;
+}
+
+.ms-status-item {
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	padding: 16px 20px;
+	border-radius: 12px;
+	background: rgba(255, 255, 255, 0.02);
+	border: 1px solid rgba(255, 255, 255, 0.05);
+	transition: all 0.3s ease;
+}
+
+.ms-status-item:hover {
+	background: rgba(255, 255, 255, 0.04);
+	border-color: rgba(41, 121, 255, 0.3);
+	transform: translateY(-2px);
+}
+
+.ms-status-item .label {
+	color: var(--ms-text-dim);
+	font-size: 13px;
+	margin-bottom: 6px;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+}
+
+.ms-status-item .value {
+	font-weight: 700;
+	font-size: 18px;
+	color: var(--ms-text);
+}
+
+.ms-status-item .value.text-success {
+	color: var(--ms-success);
+	text-shadow: 0 0 8px rgba(0,230,118,0.3);
+}
+
+.ms-status-item .value.text-danger {
+	color: var(--ms-warn);
+}
+
+.ms-btn-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+	gap: 12px;
+}
+
+.ms-btn-grid button {
+	padding: 14px 16px;
+	font-size: 14px;
+	font-weight: 600;
+	border-radius: 10px;
+	border: 1px solid rgba(255,255,255,0.1);
+	background: rgba(255,255,255,0.05);
+	color: var(--ms-text);
+	cursor: pointer;
+	transition: all 0.2s ease;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	line-height: 1;
+}
+
+.ms-btn-grid button.cbi-button-action {
+	background: var(--ms-primary);
+	border-color: var(--ms-primary);
+	box-shadow: 0 4px 12px var(--ms-primary-glow);
+}
+
+.ms-btn-grid button.cbi-button-reset {
+	background: rgba(255, 61, 0, 0.15);
+	border-color: rgba(255, 61, 0, 0.3);
+	color: var(--ms-warn);
+}
+
+.ms-btn-grid button:hover {
+	filter: brightness(1.2);
+	transform: translateY(-1px);
+}
+
+.ms-card-help {
+	color: var(--ms-text-dim);
+	margin: -8px 0 18px;
+}
+
+.ms-test-grid button.ms-test-red { border-color: #ef5350; }
+.ms-test-grid button.ms-test-green { border-color: #66bb6a; }
+.ms-test-grid button.ms-test-blue { border-color: #42a5f5; }
+.ms-test-grid button.ms-test-white { border-color: #eceff1; }
+.ms-test-grid button.ms-test-gray { border-color: #90a4ae; }
+
+.ms-theme-preview {
+	display: grid;
+	grid-template-columns: repeat(4, 1fr);
+	gap: 12px;
+	margin-top: 10px;
+}
+
+.ms-theme-chip {
+	height: 36px;
+	border-radius: 8px;
+	border: 1px solid rgba(255,255,255,0.15);
+	cursor: pointer;
+	transition: transform 0.2s;
+}
+.ms-theme-chip:hover {
+	transform: scale(1.05);
+}
+
+.ms-theme-chip.dark { background: linear-gradient(135deg, #05080c, #1565c0); }
+.ms-theme-chip.cyan { background: linear-gradient(135deg, #050810, #00bcd4); }
+.ms-theme-chip.orange { background: linear-gradient(135deg, #100a05, #ff6d00); }
+.ms-theme-chip.light { background: linear-gradient(135deg, #eceff1, #1976d2); }
+
+[data-theme="light"] .ms-card,
+.main .ms-card {
+	background: var(--ms-bg-card);
+}
+
+@media (max-width: 700px) {
+	.ms-settings-layout .cbi-section,
+	.ms-settings-layout .cbi-map,
+	.ms-card {
+		padding: 16px;
+	}
+
+	.ms-status-grid {
+		grid-template-columns: 1fr;
+	}
+}

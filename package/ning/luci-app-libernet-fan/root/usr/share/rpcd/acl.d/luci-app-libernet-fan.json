@@ -1,0 +1,28 @@
+{
+	"luci-app-libernet-fan": {
+		"description": "LiberNet 风扇控制权限",
+		"read": {
+			"ubus": {
+				"system": [ "board", "info" ],
+				"libernet_fan": [ "status" ],
+				"luci-rpc": [ "getHostHints" ]
+			},
+			"uci": [ "libernet-fan" ],
+			"file": {
+				"/sys/class/thermal": [ "list", "read" ],
+				"/proc/stat": [ "read" ],
+				"/proc/meminfo": [ "read" ]
+			}
+		},
+		"write": {
+			"uci": [ "libernet-fan" ],
+			"ubus": {
+				"libernet_fan": [ "status", "set_speed", "apply" ],
+				"service": [ "restart", "start", "stop" ]
+			},
+			"file": {
+				"/sys/class/pwm": [ "read", "write", "list" ]
+			}
+		}
+	}
+}

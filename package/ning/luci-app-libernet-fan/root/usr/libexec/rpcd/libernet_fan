@@ -1,0 +1,360 @@
+#!/bin/sh
+
+. /usr/share/libubox/jshn.sh
+
+CFG=libernet-fan
+STATE=/tmp/libernet-fan.state
+CPU_STATE=/tmp/libernet-fan.cpu
+PWM_PERIOD=40000
+
+find_fan_device() {
+	for c in /sys/class/thermal/cooling_device*; do
+		[ -d "$c" ] || continue
+		[ -f "$c/type" ] || continue
+		[ "$(cat "$c/type" 2>/dev/null)" = "pwm-fan" ] || continue
+		[ -w "$c/cur_state" ] || continue
+		echo "$c"
+		return 0
+	done
+	return 1
+}
+
+fan_max_state() {
+	cdev="$1"
+	max="$(cat "$cdev/max_state" 2>/dev/null)"
+	case "$max" in
+		''|*[!0-9]*) max=255 ;;
+	esac
+	[ "$max" -le 0 ] 2>/dev/null && max=255
+	echo "$max"
+}
+
+setup_pwm() {
+	find_fan_device
+}
+
+set_pwm_percent() {
+	pct="$1"
+	[ -n "$pct" ] || pct=0
+	[ "$pct" -lt 0 ] 2>/dev/null && pct=0
+	[ "$pct" -gt 100 ] 2>/dev/null && pct=100
+	cdev="$(setup_pwm)" || return 1
+	max="$(fan_max_state "$cdev")"
+	state=$((max - (max * pct / 100)))
+	[ "$state" -lt 0 ] && state=0
+	[ "$state" -gt "$max" ] && state="$max"
+	echo "$state" > "$cdev/cur_state" 2>/dev/null || return 1
+	echo "$pct" > "$STATE"
+	return 0
+}
+
+read_temp_from_zone() {
+	z="$1"
+	[ -f "$z/temp" ] || return 1
+	t=$(cat "$z/temp" 2>/dev/null)
+	case "$t" in
+		''|*[!0-9]*) return 1 ;;
+	esac
+	if [ "$t" -gt 1000 ]; then
+		echo $((t / 1000))
+	else
+		echo "$t"
+	fi
+	return 0
+}
+
+read_pwm_percent() {
+	for cdev in /sys/class/thermal/cooling_device*; do
+		[ -d "$cdev" ] || continue
+		[ -f "$cdev/type" ] || continue
+		[ "$(cat "$cdev/type" 2>/dev/null)" = "pwm-fan" ] || continue
+		[ -f "$cdev/cur_state" ] || continue
+		[ -f "$cdev/max_state" ] || continue
+		state=$(cat "$cdev/cur_state" 2>/dev/null)
+		max=$(fan_max_state "$cdev")
+		case "$state" in
+			''|*[!0-9]*) continue ;;
+		esac
+		[ "$state" -lt 0 ] && continue
+		[ "$state" -gt "$max" ] && continue
+		echo $((100 * (max - state) / max))
+		return 0
+	done
+	return 1
+}
+
+read_soc_temp() {
+	for token in cpu soc board; do
+		for z in /sys/class/thermal/thermal_zone*; do
+			[ -f "$z/type" ] || continue
+			type=$(cat "$z/type" 2>/dev/null)
+			case "$type" in
+				*"$token"*)
+					read_temp_from_zone "$z" && return 0
+				;;
+			esac
+		done
+	done
+	for z in /sys/class/thermal/thermal_zone*; do
+		read_temp_from_zone "$z" && return 0
+	done
+	echo 0
+}
+
+read_cpu_usage() {
+	line=$(sed -n '1p' /proc/stat)
+	set -- $line
+	user=$2; nice=$3; sys=$4; idle=$5; iow=$6; irq=$7; sirq=$8; st=$9
+	total=$((user + nice + sys + idle + iow + irq + sirq + st))
+	idle_all=$((idle + iow))
+
+	if [ -f "$CPU_STATE" ]; then
+		set -- $(cat "$CPU_STATE" 2>/dev/null)
+		prev_total=$1
+		prev_idle=$2
+		dt=$((total - prev_total))
+		di=$((idle_all - prev_idle))
+		if [ "$dt" -gt 0 ]; then
+			echo $(((100 * (dt - di)) / dt))
+		else
+			echo 0
+		fi
+	else
+		echo 0
+	fi
+
+	printf '%s %s\n' "$total" "$idle_all" > "$CPU_STATE"
+}
+
+read_mem_usage() {
+	mt=$(awk '/MemTotal/ {print $2}' /proc/meminfo)
+	ma=$(awk '/MemAvailable/ {print $2}' /proc/meminfo)
+	[ -z "$mt" ] && echo 0 && return
+	[ -z "$ma" ] && echo 0 && return
+	echo $(((100 * (mt - ma)) / mt))
+}
+
+read_temp() {
+	for z in /sys/class/thermal/thermal_zone*; do
+		[ -f "$z/temp" ] || continue
+		t=$(cat "$z/temp" 2>/dev/null)
+		case "$t" in
+			''|*[!0-9]*) continue ;;
+		esac
+		if [ "$t" -gt 1000 ]; then
+			echo $((t / 1000))
+		else
+			echo "$t"
+		fi
+		return 0
+	done
+	echo 0
+}
+
+calc_smart_pwm() {
+	temp="$1"
+	target="$2"
+	full_temp="$3"
+	minp="$4"
+	kp="$5"
+	step="$6"
+	cur="$7"
+
+	[ -z "$target" ] && target=50
+	[ -z "$full_temp" ] && full_temp=80
+	[ -z "$minp" ] && minp=20
+	[ -z "$kp" ] && kp=3
+	[ -z "$step" ] && step=4
+	[ -z "$cur" ] && cur=$minp
+
+	[ "$full_temp" -le "$target" ] 2>/dev/null && full_temp=$((target + 1))
+
+	if [ "$temp" -le "$target" ]; then
+		desired=$minp
+	elif [ "$temp" -ge "$full_temp" ]; then
+		desired=100
+	else
+		range=$((full_temp - target))
+		desired=$((minp + (temp - target) * (100 - minp) / range))
+	fi
+
+	[ "$desired" -lt "$minp" ] && desired=$minp
+	[ "$desired" -gt 100 ] && desired=100
+
+	if [ "$desired" -gt "$cur" ]; then
+		next=$((cur + step))
+		[ "$next" -gt "$desired" ] && next=$desired
+	else
+		next=$((cur - step))
+		[ "$next" -lt "$desired" ] && next=$desired
+	fi
+	echo "$next"
+}
+
+read_request_json() {
+	REQUEST_JSON="$(cat 2>/dev/null)"
+
+	[ -n "$REQUEST_JSON" ] || REQUEST_JSON="$DATA"
+}
+
+load_request_data() {
+	read_request_json
+	json_load "$REQUEST_JSON" 2>/dev/null || return 1
+	if json_get_type form_type form_data 2>/dev/null && [ "$form_type" = "object" ]; then
+		json_select form_data
+	fi
+}
+
+store_config() {
+	load_request_data || return 1
+
+	json_get_var enabled enabled
+	json_get_var mode mode
+	json_get_var silent_pwm silent_pwm
+	json_get_var turbo_pwm turbo_pwm
+	json_get_var manual_pwm manual_pwm
+	json_get_var smart_target_temp smart_target_temp
+	json_get_var smart_min_pwm smart_min_pwm
+	json_get_var smart_max_temp smart_max_temp
+	json_get_var smart_kp smart_kp
+	json_get_var smooth_step smooth_step
+	json_get_var interval interval
+
+	# Treat the RPC boundary as untrusted. A malformed frontend request must never
+	# leave the daemon permanently disabled by storing arbitrary text in enabled.
+	case "$enabled" in 0|1|'') ;; *) enabled=1 ;; esac
+	case "$mode" in smart|silent|turbo|manual|'') ;; *) mode=smart ;; esac
+
+	[ -n "$enabled" ] && uci set ${CFG}.main.enabled="$enabled"
+	[ -n "$mode" ] && uci set ${CFG}.main.mode="$mode"
+	[ -n "$silent_pwm" ] && uci set ${CFG}.main.silent_pwm="$silent_pwm"
+	[ -n "$turbo_pwm" ] && uci set ${CFG}.main.turbo_pwm="$turbo_pwm"
+	[ -n "$manual_pwm" ] && uci set ${CFG}.main.manual_pwm="$manual_pwm"
+	[ -n "$smart_target_temp" ] && uci set ${CFG}.main.smart_target_temp="$smart_target_temp"
+	[ -n "$smart_min_pwm" ] && uci set ${CFG}.main.smart_min_pwm="$smart_min_pwm"
+	[ -n "$smart_max_temp" ] && uci set ${CFG}.main.smart_max_temp="$smart_max_temp"
+	[ -n "$smart_kp" ] && uci set ${CFG}.main.smart_kp="$smart_kp"
+	[ -n "$smooth_step" ] && uci set ${CFG}.main.smooth_step="$smooth_step"
+	[ -n "$interval" ] && uci set ${CFG}.main.interval="$interval"
+
+	uci commit "$CFG"
+}
+
+read_fan_speed() {
+	speed="$(read_pwm_percent 2>/dev/null)"
+	if [ -n "$speed" ]; then
+		echo "$speed"
+		return
+	fi
+	if [ -f "$STATE" ]; then
+		cat "$STATE"
+	else
+		uci -q get ${CFG}.main.manual_pwm 2>/dev/null || echo 0
+	fi
+}
+
+apply_current_config() {
+	enabled="$(uci -q get ${CFG}.main.enabled 2>/dev/null || echo 1)"
+	mode="$(uci -q get ${CFG}.main.mode 2>/dev/null || echo smart)"
+
+	if [ "$enabled" != "1" ]; then
+		set_pwm_percent 0
+		return 0
+	fi
+
+	case "$mode" in
+		silent)
+			set_pwm_percent "$(uci -q get ${CFG}.main.silent_pwm 2>/dev/null || echo 20)"
+			;;
+		turbo)
+			set_pwm_percent "$(uci -q get ${CFG}.main.turbo_pwm 2>/dev/null || echo 100)"
+			;;
+		manual)
+			set_pwm_percent "$(uci -q get ${CFG}.main.manual_pwm 2>/dev/null || echo 35)"
+			;;
+		smart|*)
+			temp="$(read_temp)"
+			cur="$(cat "$STATE" 2>/dev/null || uci -q get ${CFG}.main.silent_pwm 2>/dev/null || echo 20)"
+			next="$(calc_smart_pwm \
+				"$temp" \
+				"$(uci -q get ${CFG}.main.smart_target_temp 2>/dev/null || echo 50)" \
+				"$(uci -q get ${CFG}.main.smart_max_temp 2>/dev/null || echo 80)" \
+				"$(uci -q get ${CFG}.main.smart_min_pwm 2>/dev/null || echo 15)" \
+				"$(uci -q get ${CFG}.main.smart_kp 2>/dev/null || echo 3)" \
+				"$(uci -q get ${CFG}.main.smooth_step 2>/dev/null || echo 4)" \
+				"$cur")"
+			set_pwm_percent "$next"
+			;;
+	esac
+}
+
+action_status() {
+	json_init
+	json_add_int cpu_usage "$(read_cpu_usage)"
+	json_add_int cpu_temp "$(read_soc_temp)"
+	json_add_int mem_usage "$(read_mem_usage)"
+	json_add_int board_temp "$(read_soc_temp)"
+	json_add_int fan_speed "$(read_fan_speed)"
+	json_add_string mode "$(uci -q get ${CFG}.main.mode 2>/dev/null || echo smart)"
+	json_add_int enabled "$(uci -q get ${CFG}.main.enabled 2>/dev/null || echo 1)"
+	json_add_int pwm_ready "$(find_fan_device >/dev/null 2>&1 && echo 1 || echo 0)"
+	json_add_string pwmchip "$(find_fan_device 2>/dev/null || echo '')"
+	json_dump
+}
+
+action_apply() {
+	store_config
+	apply_current_config || return 1
+	json_init
+	json_add_string result ok
+	json_add_int fan_speed "$(read_fan_speed)"
+	json_add_string mode "$(uci -q get ${CFG}.main.mode 2>/dev/null || echo smart)"
+	json_dump
+}
+
+action_set_speed() {
+	load_request_data || return 1
+	json_get_var speed speed
+	[ -z "$speed" ] && speed=$(printf '%s' "$REQUEST_JSON" | tr -cd '0-9')
+	set_pwm_percent "$speed" || return 1
+	json_init
+	json_add_string result ok
+	json_dump
+}
+
+case "$1" in
+list)
+		cat <<'EOF'
+{
+	"status": {},
+	"apply": {
+		"enabled": "int",
+		"mode": "string",
+		"silent_pwm": "int",
+		"turbo_pwm": "int",
+		"manual_pwm": "int",
+		"smart_target_temp": "int",
+		"smart_min_pwm": "int",
+		"smart_max_temp": "int",
+		"smart_kp": "int",
+		"smooth_step": "int",
+		"interval": "int"
+	},
+	"set_speed": {
+		"speed": "int"
+	}
+}
+EOF
+		;;
+	call)
+		case "$2" in
+			status) action_status ;;
+			apply) action_apply ;;
+			set_speed) action_set_speed ;;
+			*) exit 1 ;;
+		esac
+		;;
+	*)
+		exit 1
+		;;
+esac

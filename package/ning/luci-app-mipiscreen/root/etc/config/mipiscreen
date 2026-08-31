@@ -1,0 +1,11 @@
+
+config mipiscreen 'global'
+	option enabled '1'
+	option backlight '1'
+	option timeout '300'
+	option theme 'dark'
+	option rotation '270'
+	option touch_wake '1'
+	option boot_animation '1'
+	option show_network '1'
+	option show_system '1'

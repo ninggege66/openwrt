@@ -1,0 +1,4 @@
+config settings 'main'
+	option enabled '1'
+	option url 'https://www.ventusky.com/zh'
+	option title 'Ventusky 天气地图'

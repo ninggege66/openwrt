@@ -6,11 +6,11 @@ USE_PROCD=1
 
 validate_system_section() {
 	uci_load_validate system system "$1" "$2" \
-		'hostname:string:OpenWrt' \
+		'hostname:string:nwrt' \
 		'conloglevel:uinteger' \
 		'buffersize:uinteger' \
-		'timezone:string:GMT0' \
-		'zonename:string:UTC'
+		'timezone:string:CST-8' \
+		'zonename:string:Asia/Shanghai'
 }
 
 system_config() {

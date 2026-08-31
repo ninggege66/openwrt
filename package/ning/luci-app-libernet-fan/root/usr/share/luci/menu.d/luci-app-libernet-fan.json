@@ -1,0 +1,13 @@
+{
+	"admin/system/libernet-fan": {
+		"title": "风扇控制中心",
+		"order": 65,
+		"action": {
+			"type": "view",
+			"path": "libernet/fan"
+		},
+		"depends": {
+			"acl": [ "luci-app-libernet-fan" ]
+		}
+	}
+}

@@ -1,0 +1,24 @@
+#!/bin/sh
+# sendat - webuiserver 调用格式: sendat <port_num> '<AT_CMD>'
+# 通过 ubus at-daemon 转发 AT 命令，不直接占用 AT 端口
+
+AT_CMD="$2"
+
+# 从 qmodem 配置获取 AT 端口（通用，支持任意模组）
+AT_PORT=$(uci -q get qmodem.@modem-device[0].at_port 2>/dev/null)
+
+# 兜底：从 at-daemon 已打开的端口里取第一个
+if [ -z "$AT_PORT" ]; then
+    AT_PORT=$(ubus call at-daemon list 2>/dev/null | jsonfilter -e '@.ports[0].port' 2>/dev/null)
+fi
+
+if [ -z "$AT_PORT" ]; then
+    echo "ERROR: no AT port found"
+    exit 1
+fi
+
+RESULT=$(ubus call at-daemon sendat \
+    "{\"at_port\":\"$AT_PORT\",\"at_cmd\":\"$AT_CMD\",\"timeout\":10}" \
+    2>/dev/null)
+
+echo "$RESULT" | jsonfilter -e '@.response' 2>/dev/null || echo "ERROR"

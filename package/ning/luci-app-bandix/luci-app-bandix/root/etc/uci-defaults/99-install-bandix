@@ -1,0 +1,7 @@
+#!/bin/sh
+# 首次启动时安装 bandix 后端
+if ! command -v bandix >/dev/null 2>&1; then
+    apk add --allow-untrusted /usr/share/bandix/bandix_aarch64_cortex-a53.apk 2>/dev/null || \
+    opkg install /usr/share/bandix/bandix_aarch64_cortex-a53.apk 2>/dev/null || true
+fi
+exit 0

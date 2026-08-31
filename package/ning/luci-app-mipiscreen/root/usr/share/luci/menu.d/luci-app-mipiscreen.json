@@ -1,0 +1,13 @@
+{
+	"admin/system/mipiscreen": {
+		"title": "MIPI 屏幕控制",
+		"order": 66,
+		"action": {
+			"type": "view",
+			"path": "mipiscreen/settings"
+		},
+		"depends": {
+			"acl": [ "luci-app-mipiscreen" ]
+		}
+	}
+}

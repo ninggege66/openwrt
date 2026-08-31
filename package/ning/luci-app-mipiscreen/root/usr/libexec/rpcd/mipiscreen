@@ -1,0 +1,424 @@
+#!/bin/sh
+
+. /usr/share/libubox/jshn.sh
+
+CFG=mipiscreen
+CPU_STATE=/tmp/mipiscreen.cpu
+NET_STATE=/tmp/mipiscreen.net
+
+# Get current backlight device path
+find_backlight() {
+	for b in /sys/class/backlight/*; do
+		[ -d "$b" ] || continue
+		[ -w "$b/brightness" ] || continue
+		echo "$b"
+		return 0
+	done
+	return 1
+}
+
+# Read CPU Usage
+read_cpu_usage() {
+	local line
+	line=$(sed -n '1p' /proc/stat)
+	set -- $line
+	local user=$2 nice=$3 sys=$4 idle=$5 iow=$6 irq=$7 sirq=$8 st=$9
+	local total=$((user + nice + sys + idle + iow + irq + sirq + st))
+	local idle_all=$((idle + iow))
+
+	if [ -f "$CPU_STATE" ]; then
+		read -r prev_total prev_idle < "$CPU_STATE"
+		local dt=$((total - prev_total))
+		local di=$((idle_all - prev_idle))
+		if [ "$dt" -gt 0 ]; then
+			echo $(((100 * (dt - di)) / dt))
+		else
+			echo 0
+		fi
+	else
+		echo 0
+	fi
+	printf '%s %s\n' "$total" "$idle_all" > "$CPU_STATE"
+}
+
+screen_notify_ui() {
+	echo 0 > /sys/class/graphics/fb0/blank 2>/dev/null
+	touch /tmp/mipiscreen.reload 2>/dev/null
+}
+
+write_power() {
+	local val="$1"
+	local bdev max
+	bdev=$(find_backlight)
+	if [ "$val" = "1" ]; then
+		uci set ${CFG}.global.backlight='1'
+		uci commit "$CFG"
+		if [ -n "$bdev" ]; then
+			max=$(cat "$bdev/max_brightness" 2>/dev/null)
+			[ -n "$max" ] && echo "$max" > "$bdev/brightness" 2>/dev/null
+			echo 0 > "$bdev/bl_power" 2>/dev/null
+		fi
+		screen_notify_ui
+	else
+		uci set ${CFG}.global.backlight='0'
+		uci commit "$CFG"
+		if [ -n "$bdev" ]; then
+			echo 4 > "$bdev/bl_power" 2>/dev/null
+		fi
+	fi
+}
+
+read_hostname() {
+	uci -q get system.@system[0].hostname 2>/dev/null || echo "NWRT"
+}
+
+# Read CPU Temperature
+read_cpu_temp() {
+	local t=0
+	for z in /sys/class/thermal/thermal_zone*; do
+		[ -f "$z/type" ] || continue
+		local type
+		type=$(cat "$z/type" 2>/dev/null)
+		case "$type" in
+			*cpu*|*tsadc*)
+				t=$(cat "$z/temp" 2>/dev/null)
+				break
+				;;
+		esac
+	done
+	if [ "$t" -eq 0 ]; then
+		t=$(cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null || echo 0)
+	fi
+	if [ "$t" -gt 1000 ]; then
+		echo $((t / 1000))
+	else
+		echo "$t"
+	fi
+}
+
+# Read Memory Usage
+read_mem_usage() {
+	local mt
+	mt=$(awk '/MemTotal/ {print $2}' /proc/meminfo)
+	local ma
+	ma=$(awk '/MemAvailable/ {print $2}' /proc/meminfo)
+	[ -z "$mt" ] && echo 0 && return
+	[ -z "$ma" ] && echo 0 && return
+	echo $(((100 * (mt - ma)) / mt))
+}
+
+# Read Load Average
+read_load_avg() {
+	awk '{print $1" "$2" "$3}' /proc/loadavg
+}
+
+read_cpu_freq() {
+	local f
+	f=$(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq 2>/dev/null || echo 0)
+	if [ "$f" -eq 0 ] && [ -r /sys/kernel/debug/clk/clk_summary ]; then
+		f=$(awk '$1 == "sclk_core" {print int($5 / 1000); exit}' \
+			/sys/kernel/debug/clk/clk_summary)
+	fi
+	echo $((f / 1000))
+}
+
+read_mem_total() {
+	awk '/MemTotal/ {print int($2 / 1024)}' /proc/meminfo
+}
+
+read_storage_usage() {
+	local path=/
+	[ -d /overlay ] && path=/overlay
+	df -P "$path" 2>/dev/null |
+		awk 'NR==2 {gsub(/%/, "", $5); print $5; found=1} END {if (!found) print 0}'
+}
+
+read_storage_free() {
+	local path=/
+	[ -d /overlay ] && path=/overlay
+	df -Pk "$path" 2>/dev/null |
+		awk 'NR==2 {print int($4 / 1024); found=1} END {if (!found) print 0}'
+}
+
+# Read Uptime
+read_uptime() {
+	awk '{print int($1)}' /proc/uptime
+}
+
+# Dynamic WAN/WWAN detection
+get_wan_ip() {
+	local ip
+	ip=$(ubus call network.interface.wan status 2>/dev/null | jsonfilter -e '@["ipv4-address"][0].address' 2>/dev/null)
+	if [ -z "$ip" ]; then
+		ip=$(ubus call network.interface.modem status 2>/dev/null | jsonfilter -e '@["ipv4-address"][0].address' 2>/dev/null)
+	fi
+	if [ -z "$ip" ]; then
+		local dev
+		dev=$(ip route show | grep default | head -n 1 | awk '{print $5}')
+		if [ -n "$dev" ]; then
+			ip=$(ip -4 addr show dev "$dev" 2>/dev/null | grep inet | awk '{print $2}' | cut -d/ -f1 | head -n 1)
+		fi
+	fi
+	[ -n "$ip" ] && echo "$ip" || echo "--"
+}
+
+get_lan_ip() {
+	ubus call network.interface.lan status 2>/dev/null |
+		jsonfilter -e '@["ipv4-address"][0].address' 2>/dev/null
+}
+
+# Read network speeds (RX/TX bytes change)
+read_net_speeds() {
+	local dev
+	dev=$(ip route show | grep default | head -n 1 | awk '{print $5}')
+	[ -n "$dev" ] || dev="eth0"
+	
+	local rx_bytes
+	rx_bytes=$(cat /sys/class/net/"$dev"/statistics/rx_bytes 2>/dev/null || echo 0)
+	local tx_bytes
+	tx_bytes=$(cat /sys/class/net/"$dev"/statistics/tx_bytes 2>/dev/null || echo 0)
+	
+	local now
+	now=$(date +%s)
+	
+	local rx_speed=0
+	local tx_speed=0
+	
+	if [ -f "$NET_STATE" ]; then
+		read -r prev_time prev_rx prev_tx < "$NET_STATE"
+		local dt=$((now - prev_time))
+		if [ "$dt" -gt 0 ]; then
+			rx_speed=$(((rx_bytes - prev_rx) / dt))
+			tx_speed=$(((tx_bytes - prev_tx) / dt))
+		fi
+	fi
+	
+	printf '%s %s\n' "$rx_speed" "$tx_speed"
+	printf '%s %s %s\n' "$now" "$rx_bytes" "$tx_bytes" > "$NET_STATE"
+}
+
+# Count unique active DHCP leases and associated Wi-Fi stations.
+get_client_count() {
+	local now iface
+	now=$(date +%s)
+	{
+		[ -f /tmp/dhcp.leases ] &&
+			awk -v now="$now" '($1 == 0 || $1 > now) {print tolower($2)}' \
+				/tmp/dhcp.leases
+		if command -v iw >/dev/null 2>&1; then
+			for iface in $(iw dev 2>/dev/null |
+				awk '$1 == "Interface" {print $2}'); do
+				iw dev "$iface" station dump 2>/dev/null |
+					awk '$1 == "Station" {print tolower($2)}'
+			done
+		fi
+	} | awk 'NF && !seen[$1]++ {count++} END {print count + 0}'
+}
+
+# Query 5G signal and operator status
+get_cellular_status() {
+	# Attempt to parse QModem status
+	if [ -f /tmp/qmodem.json ]; then
+		local op
+		op=$(jsonfilter -s /tmp/qmodem.json -e '@.modem.operator' 2>/dev/null)
+		local signal
+		signal=$(jsonfilter -s /tmp/qmodem.json -e '@.modem.rssi' 2>/dev/null)
+		local net_type
+		net_type=$(jsonfilter -s /tmp/qmodem.json -e '@.modem.network_type' 2>/dev/null)
+		if [ -n "$op" ]; then
+			printf '%s|%s|%s|%s\n' "connected" "$op" "$net_type" "$signal"
+			return 0
+		fi
+	fi
+	
+	# Attempt uqmi for CDC-WDM devices
+	if [ -c /dev/cdc-wdm0 ] && command -v uqmi >/dev/null; then
+		local sig_info
+		sig_info=$(uqmi -d /dev/cdc-wdm0 --get-signal-info 2>/dev/null)
+		if [ -n "$sig_info" ]; then
+			local rssi
+			rssi=$(echo "$sig_info" | grep -oE '"rssi": -?[0-9]+' | grep -oE '-?[0-9]+')
+			printf '%s|%s|%s|%s\n' "connected" "中国联通 (China Unicom)" "5G-SA" "$rssi"
+			return 0
+		fi
+	fi
+
+	printf '%s|%s|%s|%s\n' "disconnected" "未检测到蜂窝网络" "--" "-110"
+}
+
+read_touch_status() {
+	local d name
+	for d in /sys/class/input/input*; do
+		[ -r "$d/name" ] || continue
+		name=$(cat "$d/name" 2>/dev/null)
+		case "$name" in
+			*[Tt]ouch*|*FTS*|*fts*|*ft5*|*EDT*|*focal*|*goodix*)
+				echo "$name"
+				return
+				;;
+		esac
+	done
+	echo ""
+}
+
+action_status() {
+	local speeds
+	speeds=$(read_net_speeds)
+	local rx_speed
+	rx_speed=$(echo "$speeds" | awk '{print $1}')
+	local tx_speed
+	tx_speed=$(echo "$speeds" | awk '{print $2}')
+	
+	local cell
+	cell=$(get_cellular_status)
+	local cell_status
+	cell_status=$(echo "$cell" | cut -d'|' -f1)
+	local cell_op
+	cell_op=$(echo "$cell" | cut -d'|' -f2)
+	local cell_type
+	cell_type=$(echo "$cell" | cut -d'|' -f3)
+	local cell_sig
+	cell_sig=$(echo "$cell" | cut -d'|' -f4)
+	
+	json_init
+	# System
+	json_add_int cpu_usage "$(read_cpu_usage)"
+	json_add_int cpu_temp "$(read_cpu_temp)"
+	json_add_int mem_usage "$(read_mem_usage)"
+	json_add_int cpu_freq "$(read_cpu_freq)"
+	json_add_int mem_total "$(read_mem_total)"
+	json_add_int storage_usage "$(read_storage_usage)"
+	json_add_int storage_free "$(read_storage_free)"
+	json_add_string load_avg "$(read_load_avg)"
+	json_add_int uptime "$(read_uptime)"
+	json_add_string hostname "$(read_hostname)"
+	json_add_string kernel "$(uname -r)"
+	json_add_string local_time "$(date '+%m-%d %H:%M')"
+	json_add_string wan_ip "$(get_wan_ip)"
+	json_add_string lan_ip "$(get_lan_ip)"
+	json_add_int rx_speed "$rx_speed"
+	json_add_int tx_speed "$tx_speed"
+	json_add_int clients "$(get_client_count)"
+	
+	# 5G Modem
+	json_add_string cell_status "$cell_status"
+	json_add_string cell_operator "$cell_op"
+	json_add_string cell_type "$cell_type"
+	json_add_int cell_signal "$cell_sig"
+	
+	# Configuration State
+	json_add_int backlight "$(uci -q get mipiscreen.global.backlight || echo 1)"
+	json_add_string theme "$(uci -q get ${CFG}.global.theme || echo dark)"
+	json_add_int timeout "$(uci -q get ${CFG}.global.timeout || echo 300)"
+	json_add_int rotation "$(uci -q get ${CFG}.global.rotation || echo 270)"
+	json_add_int touch_wake "$(uci -q get ${CFG}.global.touch_wake || echo 1)"
+	local touch_name
+	touch_name=$(read_touch_status)
+	json_add_boolean touch_present "$([ -n "$touch_name" ] && echo 1 || echo 0)"
+	json_add_string touch_name "$touch_name"
+	json_add_int show_network "$(uci -q get ${CFG}.global.show_network || echo 1)"
+	json_add_int show_system "$(uci -q get ${CFG}.global.show_system || echo 1)"
+	
+	json_dump
+}
+
+action_set_power() {
+	read_request_json
+	json_load "$REQUEST_JSON" 2>/dev/null
+	json_get_var state power
+	[ -n "$state" ] || state=$(printf '%s' "$REQUEST_JSON" | tr -cd '0-9')
+	
+	write_power "$state"
+	
+	json_init
+	json_add_string result ok
+	json_dump
+}
+
+action_test_screen() {
+	read_request_json
+	json_load "$REQUEST_JSON" 2>/dev/null
+	json_get_var pattern pattern
+	case "$pattern" in
+		red|green|blue|white|gray|grid) ;;
+		*) pattern=gray ;;
+	esac
+	printf '%s\n' "$pattern" > /tmp/mipiscreen.test
+	screen_notify_ui
+	json_init
+	json_add_string result ok
+	json_add_string pattern "$pattern"
+	json_dump
+}
+
+action_control_device() {
+	read_request_json
+	json_load "$REQUEST_JSON" 2>/dev/null
+	json_get_var action action
+	
+	case "$action" in
+		reboot)
+			(sleep 2; reboot) &
+			;;
+		wifi_toggle)
+			local wstate
+			wstate=$(uci -q get wireless.radio0.disabled || echo 0)
+			if [ "$wstate" = "1" ]; then
+				uci set wireless.radio0.disabled=0
+			else
+				uci set wireless.radio0.disabled=1
+			fi
+			uci commit wireless
+			(sleep 1; wifi) &
+			;;
+		reconnect_5g)
+			# Restart modem or wwan interface
+			(ifdown modem; sleep 1; ifup modem) &
+			;;
+		clear_ram)
+			# Drop caches
+			sync
+			echo 3 > /proc/sys/vm/drop_caches
+			;;
+	esac
+	
+	json_init
+	json_add_string result ok
+	json_dump
+}
+
+read_request_json() {
+	REQUEST_JSON="$(cat 2>/dev/null)"
+	[ -n "$REQUEST_JSON" ] || REQUEST_JSON="$DATA"
+}
+
+case "$1" in
+	list)
+		cat <<'EOF'
+{
+	"get_status": {},
+	"set_power": {
+		"power": "int"
+	},
+	"test_screen": {
+		"pattern": "string"
+	},
+	"control_device": {
+		"action": "string"
+	}
+}
+EOF
+		;;
+	call)
+		case "$2" in
+			get_status) action_status ;;
+			set_power) action_set_power ;;
+			test_screen) action_test_screen ;;
+			control_device) action_control_device ;;
+			*) exit 1 ;;
+		esac
+		;;
+	*)
+		exit 1
+		;;
+esac

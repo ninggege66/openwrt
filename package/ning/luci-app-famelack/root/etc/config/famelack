@@ -1,0 +1,4 @@
+config settings 'main'
+	option enabled '1'
+	option url 'https://famelack.com'
+	option title '直播电视'

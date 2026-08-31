@@ -1,0 +1,823 @@
+#view .lf-shell,
+#view .libernet-fan-shell {
+	display: grid;
+	gap: 1rem;
+}
+
+#view .lf-card,
+#view .lf-hero,
+#view .lf-slider-card,
+#view .lf-advanced {
+	background: linear-gradient(180deg, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.72));
+	border: 1px solid rgba(94, 166, 155, 0.16);
+	box-shadow: 0 12px 36px rgba(15, 23, 42, 0.08);
+	backdrop-filter: blur(12px);
+	border-radius: 18px;
+	position: relative;
+	overflow: hidden;
+	transition: border-color 0.22s ease, box-shadow 0.22s ease, transform 0.22s ease, background 0.22s ease;
+}
+
+@media (prefers-color-scheme: dark) {
+	#view .lf-card,
+	#view .lf-hero,
+	#view .lf-slider-card,
+	#view .lf-advanced {
+		background: linear-gradient(180deg, rgba(20, 20, 20, 0.88), rgba(25, 25, 25, 0.74));
+		border-color: rgba(255, 255, 255, 0.08);
+	}
+}
+
+#view .lf-hero {
+	display: grid;
+	grid-template-columns: minmax(0, 1.45fr) minmax(220px, 0.95fr);
+	gap: 1rem;
+	padding: 1.2rem;
+	background:
+		linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.018));
+}
+
+#view .lf-hero::before,
+#view .lf-card::before {
+	content: '';
+	position: absolute;
+	inset: 0;
+	background:
+		radial-gradient(circle at top right, rgba(255, 255, 255, 0.06) 0%, transparent 45%);
+	opacity: 0.75;
+	pointer-events: none;
+}
+
+#view .lf-hero > *,
+#view .lf-card > * {
+	position: relative;
+	z-index: 1;
+}
+
+#view .lf-breadcrumb,
+#view .lf-card-sub,
+#view .lf-hero-caption,
+#view .lf-mode-desc,
+#view .lf-slider-hint,
+#view .lf-switch-copy small {
+	color: var(--text_color, #667085);
+}
+
+#view .lf-title {
+	margin: 0.2rem 0 0.5rem;
+	font-size: 1.65rem;
+	line-height: 1.1;
+}
+
+#view .lf-description {
+	margin: 0;
+	max-width: 54rem;
+	color: var(--text_color, #667085);
+}
+
+#view .lf-hero-meta,
+#view .lf-actions,
+#view .lf-mode-grid,
+#view .lf-advanced-grid,
+#view .lf-ctrl-grid {
+	display: grid;
+	gap: 0.8rem;
+}
+
+#view .lf-hero-meta {
+	grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+	margin-top: 0.9rem;
+}
+
+#view .lf-pill {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35rem;
+	min-width: 0;
+	padding: 0.55rem 0.8rem;
+	border-radius: 999px;
+	background: rgba(94, 166, 155, 0.12);
+	color: var(--text_color, #344054);
+	font-size: 0.92rem;
+	white-space: normal;
+	overflow-wrap: anywhere;
+	word-break: break-word;
+}
+
+#view .lf-thermal-pill {
+	background: color-mix(in srgb, var(--thermal-color, #5ea69b) 16%, transparent);
+	color: var(--thermal-color, #5ea69b);
+	border: 1px solid color-mix(in srgb, var(--thermal-color, #5ea69b) 35%, transparent);
+	box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.03) inset;
+}
+
+#view .lf-shell[data-thermal='warm'] .lf-card,
+#view .lf-shell[data-thermal='hot'] .lf-card,
+#view .lf-shell[data-thermal='critical'] .lf-card {
+	box-shadow: 0 12px 34px color-mix(in srgb, var(--thermal-glow, rgba(94, 166, 155, 0.16)) 55%, rgba(15, 23, 42, 0.08));
+}
+
+#view .lf-shell[data-thermal='warm'] .lf-hero,
+#view .lf-shell[data-thermal='hot'] .lf-hero,
+#view .lf-shell[data-thermal='critical'] .lf-hero {
+	border-color: color-mix(in srgb, var(--thermal-color, #5ea69b) 34%, rgba(94, 166, 155, 0.16));
+}
+
+#view .lf-shell[data-thermal='critical'] .lf-fan-wheel {
+	filter: saturate(1.2) hue-rotate(-10deg);
+}
+
+#view .lf-shell[data-thermal='hot'] .lf-fan-stage::after,
+#view .lf-shell[data-thermal='critical'] .lf-fan-stage::after {
+	animation-duration: 1.6s;
+}
+
+#view .lf-shell[data-thermal='critical'] .lf-fan-stage::after {
+	opacity: 0.95;
+}
+
+#view .lf-shell[data-thermal='critical'] .lf-thermal-pill {
+	animation: lf-pulse 1.4s ease-in-out infinite;
+}
+
+#view .lf-hero-visual {
+	display: grid;
+	align-content: center;
+	justify-items: center;
+	gap: 0.65rem;
+}
+
+#view .lf-fan-stage {
+	position: relative;
+	width: 180px;
+	height: 180px;
+	display: grid;
+	place-items: center;
+}
+
+#view .lf-fan-stage::after {
+	content: '';
+	position: absolute;
+	inset: -12%;
+	border-radius: 50%;
+	background: radial-gradient(circle, transparent 52%, var(--thermal-glow, rgba(94, 166, 155, 0.18)) 53%, transparent 66%);
+	opacity: 0.7;
+	animation: lf-pulse 3s ease-in-out infinite;
+	pointer-events: none;
+}
+
+#view .lf-fan-ring {
+	position: absolute;
+	inset: 0;
+	border-radius: 50%;
+	background:
+		radial-gradient(circle, transparent 48%, var(--thermal-glow, rgba(94, 166, 155, 0.18)) 49%, transparent 50%),
+		conic-gradient(from 45deg, var(--thermal-color, #5ea69b), rgba(94, 166, 155, 0.18), var(--thermal-color, #5ea69b));
+	filter: drop-shadow(0 12px 30px var(--thermal-glow, rgba(94, 166, 155, 0.18)));
+	opacity: 0.9;
+}
+
+#view .lf-fan-wheel {
+	position: absolute;
+	inset: 16%;
+	border-radius: 50%;
+	background:
+		conic-gradient(from 45deg,
+			rgba(94, 166, 155, 0.95) 0 12%,
+			transparent 12% 25%,
+			rgba(94, 166, 155, 0.95) 25% 37%,
+			transparent 37% 50%,
+			rgba(94, 166, 155, 0.95) 50% 62%,
+			transparent 62% 75%,
+			rgba(94, 166, 155, 0.95) 75% 87%,
+			transparent 87% 100%);
+	animation: lf-spin var(--fan-spin, 12s) linear infinite;
+	transform-origin: center;
+	box-shadow: inset 0 0 0 10px rgba(255, 255, 255, 0.06);
+}
+
+#view .lf-fan-wheel::before {
+	content: '';
+	position: absolute;
+	inset: 24%;
+	border-radius: 50%;
+	background:
+		radial-gradient(circle at center, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.2)),
+		linear-gradient(180deg, rgba(94, 166, 155, 0.08), rgba(94, 166, 155, 0.28));
+	box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.12);
+}
+
+#view .lf-fan-wheel::after {
+	content: '';
+	position: absolute;
+	inset: 40%;
+	border-radius: 50%;
+	background: linear-gradient(180deg, rgba(36, 52, 75, 0.95), rgba(36, 52, 75, 0.55));
+	box-shadow: 0 0 0 8px rgba(255, 255, 255, 0.08);
+}
+
+#view .lf-fan-wheel.is-off {
+	animation-play-state: paused;
+	opacity: 0.35;
+	filter: saturate(0.7);
+}
+
+#view .lf-fan-center {
+	position: absolute;
+	width: 18px;
+	height: 18px;
+	border-radius: 50%;
+	background: var(--active_color, #5ea69b);
+	box-shadow: 0 0 0 8px rgba(94, 166, 155, 0.16);
+	z-index: 2;
+}
+
+#view .lf-shell[data-thermal='warm'] .lf-fan-center,
+#view .lf-shell[data-thermal='hot'] .lf-fan-center,
+#view .lf-shell[data-thermal='critical'] .lf-fan-center {
+	box-shadow: 0 0 0 8px color-mix(in srgb, var(--thermal-color, #5ea69b) 26%, transparent);
+}
+
+#view .lf-fan-speed {
+	position: absolute;
+	z-index: 3;
+	font-size: 1.6rem;
+	font-weight: 700;
+	letter-spacing: 0.02em;
+	color: var(--text_color, #344054);
+	text-shadow: 0 1px 1px rgba(255, 255, 255, 0.35);
+}
+
+#view .lf-shell[data-thermal='warm'] .lf-fan-speed,
+#view .lf-shell[data-thermal='hot'] .lf-fan-speed,
+#view .lf-shell[data-thermal='critical'] .lf-fan-speed {
+	color: var(--thermal-color, #5ea69b);
+}
+
+#view .lf-hero-caption {
+	font-size: 0.92rem;
+	text-align: center;
+}
+
+#view .lf-grid {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 1rem;
+}
+
+#view .lf-metric-card {
+	padding: 1rem;
+	min-height: 180px;
+}
+
+#view .lf-metric-card::before {
+	opacity: 0.55;
+}
+
+#view .lf-metric-card[data-thermal='cool'] {
+	border-color: rgba(94, 166, 155, 0.16);
+}
+
+#view .lf-metric-card[data-thermal='warm'] {
+	border-color: rgba(245, 185, 76, 0.34);
+	box-shadow: 0 10px 34px rgba(245, 185, 76, 0.10);
+}
+
+#view .lf-metric-card[data-thermal='hot'] {
+	border-color: rgba(255, 138, 76, 0.40);
+	box-shadow: 0 10px 34px rgba(255, 138, 76, 0.14);
+}
+
+#view .lf-metric-card[data-thermal='critical'] {
+	border-color: rgba(255, 93, 93, 0.50);
+	box-shadow: 0 10px 36px rgba(255, 93, 93, 0.18);
+}
+
+#view .lf-card-head {
+	display: flex;
+	justify-content: space-between;
+	align-items: flex-end;
+	gap: 0.8rem;
+	margin-bottom: 0.5rem;
+}
+
+#view .lf-card-title {
+	font-weight: 600;
+	letter-spacing: 0.02em;
+}
+
+#view .lf-card-value {
+	font-size: 1.5rem;
+	font-weight: 700;
+	color: var(--active_color, #5ea69b);
+}
+
+#view .lf-metric-card[data-thermal='warm'] .lf-card-value,
+#view .lf-metric-card[data-thermal='hot'] .lf-card-value,
+#view .lf-metric-card[data-thermal='critical'] .lf-card-value {
+	color: var(--thermal-color, #5ea69b);
+}
+
+#view .lf-thermal-row {
+	display: grid;
+	gap: 0.45rem;
+	margin-top: 0.2rem;
+}
+
+#view .lf-thermal-badge {
+	display: inline-flex;
+	width: fit-content;
+	align-items: center;
+	padding: 0.28rem 0.55rem;
+	border-radius: 999px;
+	background: rgba(94, 166, 155, 0.10);
+	color: var(--thermal-color, #5ea69b);
+	font-size: 0.8rem;
+	font-weight: 700;
+	letter-spacing: 0.02em;
+}
+
+#view .lf-metric-card[data-thermal='warm'] .lf-thermal-badge,
+#view .lf-metric-card[data-thermal='hot'] .lf-thermal-badge,
+#view .lf-metric-card[data-thermal='critical'] .lf-thermal-badge {
+	background: color-mix(in srgb, var(--thermal-color, #5ea69b) 18%, transparent);
+	border: 1px solid color-mix(in srgb, var(--thermal-color, #5ea69b) 30%, transparent);
+}
+
+#view .lf-heat-meter {
+	position: relative;
+	height: 10px;
+	border-radius: 999px;
+	background: linear-gradient(90deg, rgba(148, 163, 184, 0.24), rgba(148, 163, 184, 0.08));
+	overflow: hidden;
+}
+
+#view .lf-heat-fill {
+	position: absolute;
+	inset: 0 auto 0 0;
+	width: 0;
+	border-radius: 999px;
+	background: linear-gradient(90deg, rgba(94, 166, 155, 0.3), var(--thermal-color, #5ea69b));
+	box-shadow: 0 0 18px var(--thermal-glow, rgba(94, 166, 155, 0.16));
+	transition: width 0.22s ease, background 0.22s ease;
+}
+
+#view .lf-heat-dot {
+	position: absolute;
+	right: 0;
+	top: 50%;
+	width: 12px;
+	height: 12px;
+	border-radius: 50%;
+	transform: translate(50%, -50%);
+	background: #fff;
+	box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.14), 0 0 14px var(--thermal-glow, rgba(94, 166, 155, 0.20));
+}
+
+#view .lf-metric-card[data-thermal='warm'] .lf-spark-line,
+#view .lf-metric-card[data-thermal='hot'] .lf-spark-line,
+#view .lf-metric-card[data-thermal='critical'] .lf-spark-line {
+	stroke: var(--thermal-color, #5ea69b);
+}
+
+#view .lf-metric-card[data-thermal='warm'] .lf-spark-fill,
+#view .lf-metric-card[data-thermal='hot'] .lf-spark-fill,
+#view .lf-metric-card[data-thermal='critical'] .lf-spark-fill {
+	fill: var(--thermal-glow, rgba(94, 166, 155, 0.16));
+}
+
+#view .lf-sparkline {
+	width: 100%;
+	height: 76px;
+	margin-top: 0.8rem;
+	overflow: visible;
+}
+
+#view .lf-spark-fill,
+#view .lf-spark-line {
+	fill: none;
+	stroke-width: 1.8;
+	stroke-linejoin: round;
+	stroke-linecap: round;
+}
+
+#view .lf-spark-fill {
+	opacity: 0.18;
+}
+
+#view .lf-accent-blue {
+	stroke: #4ea3ff;
+	fill: rgba(78, 163, 255, 0.2);
+}
+
+#view .lf-accent-teal {
+	stroke: #28c7a7;
+	fill: rgba(40, 199, 167, 0.2);
+}
+
+#view .lf-accent-green {
+	stroke: #5ea69b;
+	fill: rgba(94, 166, 155, 0.2);
+}
+
+#view .lf-ctrl-grid {
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+#view .lf-mode-grid {
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	margin: 0.8rem 0 1rem;
+}
+
+#view .lf-mode-btn {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 0.35rem;
+	width: 100%;
+	padding: 0.95rem 1rem;
+	border-radius: 14px;
+	border: 1px solid rgba(94, 166, 155, 0.14);
+	background: rgba(255, 255, 255, 0.32);
+	color: var(--text_color, #344054);
+	text-align: left;
+	transition: all 0.18s ease;
+}
+
+@media (prefers-color-scheme: dark) {
+	#view .lf-mode-btn {
+		background: rgba(255, 255, 255, 0.03);
+	}
+}
+
+#view .lf-mode-btn:hover,
+#view .lf-mode-btn.is-active {
+	transform: translateY(-1px);
+	border-color: rgba(94, 166, 155, 0.55);
+	box-shadow: 0 8px 22px rgba(94, 166, 155, 0.12);
+}
+
+#view .lf-mode-label {
+	font-size: 1rem;
+	font-weight: 700;
+}
+
+#view .lf-switch {
+	display: flex;
+	align-items: center;
+	gap: 0.8rem;
+	margin-top: 0.3rem;
+	padding: 0.85rem 0.95rem;
+	border-radius: 14px;
+	background: rgba(94, 166, 155, 0.08);
+}
+
+#view .lf-switch input {
+	display: none;
+}
+
+#view .lf-switch-track {
+	position: relative;
+	display: inline-block;
+	width: 52px;
+	height: 30px;
+	border-radius: 999px;
+	background: rgba(148, 163, 184, 0.4);
+	transition: all 0.18s ease;
+	flex: 0 0 auto;
+}
+
+#view .lf-switch-track::after {
+	content: '';
+	position: absolute;
+	top: 3px;
+	left: 3px;
+	width: 24px;
+	height: 24px;
+	border-radius: 50%;
+	background: #fff;
+	box-shadow: 0 4px 10px rgba(15, 23, 42, 0.15);
+	transition: transform 0.18s ease;
+}
+
+#view .lf-switch input:checked + .lf-switch-track {
+	background: var(--active_color, #5ea69b);
+}
+
+#view .lf-switch input:checked + .lf-switch-track::after {
+	transform: translateX(22px);
+}
+
+#view .lf-switch-copy {
+	display: grid;
+	gap: 0.1rem;
+}
+
+#view .lf-slider-card {
+	padding: 1rem;
+}
+
+#view .lf-slider-layout {
+	display: grid;
+	grid-template-columns: minmax(0, 1.6fr) minmax(190px, 0.9fr);
+	gap: 1rem;
+	align-items: center;
+}
+
+#view .lf-slider-main {
+	display: grid;
+	gap: 0.55rem;
+}
+
+#view .lf-range-scale {
+	display: grid;
+	grid-template-columns: repeat(5, minmax(0, 1fr));
+	gap: 0.4rem;
+	font-size: 0.78rem;
+	color: var(--text_color, #667085);
+	letter-spacing: 0.02em;
+}
+
+#view .lf-range-scale span {
+	position: relative;
+	padding-top: 0.35rem;
+	text-align: center;
+}
+
+#view .lf-range-scale span::before {
+	content: '';
+	position: absolute;
+	left: 50%;
+	top: 0;
+	width: 1px;
+	height: 8px;
+	transform: translateX(-50%);
+	background: rgba(148, 163, 184, 0.5);
+}
+
+#view .lf-slider-dial {
+	--range-progress: 35%;
+	position: relative;
+	width: min(100%, 210px);
+	aspect-ratio: 1 / 1;
+	margin-left: auto;
+	display: grid;
+	place-items: center;
+}
+
+#view .lf-slider-dial-ring {
+	position: absolute;
+	inset: 0;
+	border-radius: 50%;
+	background:
+		conic-gradient(from 270deg,
+			var(--active_color, #5ea69b) 0 var(--range-progress),
+			rgba(148, 163, 184, 0.14) var(--range-progress) 100%);
+	filter: drop-shadow(0 12px 30px rgba(94, 166, 155, 0.18));
+}
+
+#view .lf-slider-dial-ring::before {
+	content: '';
+	position: absolute;
+	inset: 13%;
+	border-radius: 50%;
+	background:
+		radial-gradient(circle at center, rgba(255, 255, 255, 0.94) 0 18%, rgba(255, 255, 255, 0.14) 19% 36%, transparent 37%),
+		linear-gradient(180deg, rgba(94, 166, 155, 0.16), rgba(94, 166, 155, 0.03));
+	box-shadow:
+		inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+		0 0 0 12px rgba(94, 166, 155, 0.05);
+}
+
+#view .lf-slider-dial-core {
+	position: absolute;
+	inset: 29%;
+	border-radius: 50%;
+	display: grid;
+	place-items: center;
+	gap: 0.15rem;
+	background:
+		radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.66)),
+		linear-gradient(180deg, rgba(94, 166, 155, 0.10), rgba(94, 166, 155, 0.20));
+	box-shadow:
+		inset 0 0 0 1px rgba(255, 255, 255, 0.12),
+		0 10px 26px rgba(15, 23, 42, 0.12);
+}
+
+#view .lf-slider-dial-core::before {
+	content: '';
+	position: absolute;
+	inset: 15%;
+	border-radius: 50%;
+	background:
+		conic-gradient(from 45deg, rgba(94, 166, 155, 0.9) 0 14%, transparent 14% 28%, rgba(94, 166, 155, 0.9) 28% 42%, transparent 42% 56%, rgba(94, 166, 155, 0.9) 56% 70%, transparent 70% 84%, rgba(94, 166, 155, 0.9) 84% 100%);
+	opacity: 0.28;
+	animation: lf-spin 8s linear infinite;
+}
+
+#view .lf-slider-dial-value {
+	z-index: 1;
+	font-size: 1.85rem;
+	font-weight: 800;
+	color: var(--active_color, #5ea69b);
+	line-height: 1;
+}
+
+#view .lf-slider-dial-label {
+	z-index: 1;
+	font-size: 0.88rem;
+	color: var(--text_color, #667085);
+	letter-spacing: 0.08em;
+}
+
+#view .lf-range {
+	width: 100%;
+	margin: 0.6rem 0 0.45rem;
+	accent-color: var(--active_color, #5ea69b);
+	position: relative;
+	z-index: 2;
+	cursor: pointer;
+	touch-action: none;
+	-webkit-appearance: none;
+	appearance: none;
+	height: 30px;
+	background: transparent;
+	--range-progress: 35%;
+}
+
+#view .lf-range::-webkit-slider-runnable-track {
+	height: 8px;
+	border-radius: 999px;
+	background:
+		repeating-linear-gradient(90deg,
+			rgba(255, 255, 255, 0.00) 0 19%,
+			rgba(255, 255, 255, 0.10) 19% 19.8%,
+			rgba(255, 255, 255, 0.00) 19.8% 20%),
+		linear-gradient(90deg,
+			var(--active_color, #5ea69b) 0 var(--range-progress),
+			rgba(148, 163, 184, 0.22) var(--range-progress) 100%);
+	box-shadow:
+		inset 0 0 0 1px rgba(255, 255, 255, 0.04),
+		0 6px 18px rgba(94, 166, 155, 0.10);
+}
+
+#view .lf-range::-webkit-slider-thumb {
+	-webkit-appearance: none;
+	appearance: none;
+	width: 22px;
+	height: 22px;
+	border-radius: 50%;
+	margin-top: -7px;
+	background: #fff;
+	border: 2px solid var(--active_color, #5ea69b);
+	box-shadow: 0 6px 16px rgba(15, 23, 42, 0.18);
+}
+
+#view .lf-range::-moz-range-track {
+	height: 8px;
+	border-radius: 999px;
+	background:
+		repeating-linear-gradient(90deg,
+			rgba(255, 255, 255, 0.00) 0 19%,
+			rgba(255, 255, 255, 0.10) 19% 19.8%,
+			rgba(255, 255, 255, 0.00) 19.8% 20%),
+		linear-gradient(90deg,
+			var(--active_color, #5ea69b) 0 var(--range-progress),
+			rgba(148, 163, 184, 0.22) var(--range-progress) 100%);
+	box-shadow:
+		inset 0 0 0 1px rgba(255, 255, 255, 0.04),
+		0 6px 18px rgba(94, 166, 155, 0.10);
+}
+
+#view .lf-range::-moz-range-thumb {
+	width: 22px;
+	height: 22px;
+	border-radius: 50%;
+	background: #fff;
+	border: 2px solid var(--active_color, #5ea69b);
+	box-shadow: 0 6px 16px rgba(15, 23, 42, 0.18);
+}
+
+#view .lf-advanced {
+	padding: 1rem;
+}
+
+#view .lf-advanced summary {
+	cursor: pointer;
+	font-weight: 700;
+	color: var(--text_color, #344054);
+}
+
+#view .lf-advanced-grid {
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	margin-top: 1rem;
+}
+
+#view .lf-advanced-grid label {
+	display: grid;
+	gap: 0.35rem;
+	font-size: 0.92rem;
+}
+
+#view .lf-advanced-grid input {
+	width: 100%;
+	padding: 0.68rem 0.78rem;
+	border-radius: 12px;
+	border: 1px solid rgba(148, 163, 184, 0.3);
+	background: rgba(255, 255, 255, 0.55);
+	color: var(--text_color, #344054);
+}
+
+@media (prefers-color-scheme: dark) {
+	#view .lf-advanced-grid input {
+		background: rgba(255, 255, 255, 0.05);
+	}
+}
+
+#view .lf-actions {
+	grid-template-columns: repeat(2, minmax(0, auto));
+	justify-content: end;
+}
+
+#view .lf-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.35rem;
+	min-width: 140px;
+	padding: 0.9rem 1.15rem;
+	border-radius: 14px;
+	border: 1px solid transparent;
+	font-weight: 700;
+	transition: all 0.18s ease;
+}
+
+#view .lf-btn-primary {
+	background: linear-gradient(135deg, var(--active_color, #5ea69b), rgba(94, 166, 155, 0.78));
+	color: #fff;
+	box-shadow: 0 10px 24px rgba(94, 166, 155, 0.22);
+}
+
+#view .lf-btn-primary:hover {
+	transform: translateY(-1px);
+	filter: brightness(1.03);
+}
+
+#view .lf-btn-ghost {
+	background: transparent;
+	color: var(--text_color, #344054);
+	border-color: rgba(148, 163, 184, 0.35);
+}
+
+#view .lf-btn-ghost:hover {
+	border-color: var(--active_color, #5ea69b);
+	color: var(--active_color, #5ea69b);
+}
+
+@keyframes lf-spin {
+	from {
+		transform: rotate(0deg);
+	}
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+@keyframes lf-pulse {
+	0% {
+		transform: scale(0.96);
+		opacity: 0.45;
+	}
+	50% {
+		transform: scale(1.06);
+		opacity: 0.85;
+	}
+	100% {
+		transform: scale(0.96);
+		opacity: 0.45;
+	}
+}
+
+@media (max-width: 900px) {
+	#view .lf-hero,
+	#view .lf-grid,
+	#view .lf-ctrl-grid,
+	#view .lf-mode-grid,
+	#view .lf-advanced-grid,
+	#view .lf-slider-layout {
+		grid-template-columns: 1fr;
+	}
+
+	#view .lf-slider-dial {
+		margin-left: 0;
+		justify-self: center;
+	}
+
+	#view .lf-actions {
+		justify-content: stretch;
+	}
+
+	#view .lf-btn {
+		width: 100%;
+	}
+}

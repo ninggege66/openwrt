@@ -1,0 +1,7 @@
+{
+	"luci-app-ventusky": {
+		"description": "Ventusky weather map configuration",
+		"read": { "uci": [ "ventusky" ] },
+		"write": { "uci": [ "ventusky" ] }
+	}
+}

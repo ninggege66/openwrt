@@ -1,0 +1,134 @@
+#!/bin/sh
+
+CFG=libernet-fan
+STATE=/tmp/libernet-fan.state
+PWM_PERIOD=40000
+
+find_fan_device() {
+	for c in /sys/class/thermal/cooling_device*; do
+		[ -d "$c" ] || continue
+		[ -f "$c/type" ] || continue
+		[ "$(cat "$c/type" 2>/dev/null)" = "pwm-fan" ] || continue
+		[ -w "$c/cur_state" ] || continue
+		echo "$c"
+		return 0
+	done
+	return 1
+}
+
+fan_max_state() {
+	cdev="$1"
+	max="$(cat "$cdev/max_state" 2>/dev/null)"
+	case "$max" in
+		''|*[!0-9]*) max=255 ;;
+	esac
+	[ "$max" -le 0 ] 2>/dev/null && max=255
+	echo "$max"
+}
+
+setup_pwm() {
+	find_fan_device
+}
+
+set_pwm() {
+	pct="$1"
+	[ -n "$pct" ] || pct=0
+	[ "$pct" -lt 0 ] 2>/dev/null && pct=0
+	[ "$pct" -gt 100 ] 2>/dev/null && pct=100
+	cdev="$(setup_pwm)" || return 1
+	max="$(fan_max_state "$cdev")"
+	state=$((max - (max * pct / 100)))
+	[ "$state" -lt 0 ] && state=0
+	[ "$state" -gt "$max" ] && state="$max"
+	echo "$state" > "$cdev/cur_state" 2>/dev/null || return 1
+	echo "$pct" > "$STATE"
+}
+
+read_temp() {
+	for z in /sys/class/thermal/thermal_zone*; do
+		[ -f "$z/temp" ] || continue
+		t=$(cat "$z/temp" 2>/dev/null)
+		case "$t" in
+			''|*[!0-9]*) continue ;;
+		esac
+		if [ "$t" -gt 1000 ]; then
+			echo $((t / 1000))
+		else
+			echo "$t"
+		fi
+		return
+	done
+	echo 0
+}
+
+calc_smart_pwm() {
+	temp="$1"
+	target="$2"
+	minp="$3"
+	maxp="$4"
+	kp="$5"
+	step="$6"
+	cur="$7"
+
+	[ -z "$target" ] && target=50
+	[ -z "$minp" ] && minp=20
+	[ -z "$maxp" ] && maxp=100
+	[ -z "$kp" ] && kp=3
+	[ -z "$step" ] && step=4
+	[ -z "$cur" ] && cur=$minp
+
+	delta=$((temp - target))
+	desired=$((minp + delta * kp))
+	[ "$desired" -lt "$minp" ] && desired=$minp
+	[ "$desired" -gt "$maxp" ] && desired=$maxp
+
+	if [ "$desired" -gt "$cur" ]; then
+		next=$((cur + step))
+		[ "$next" -gt "$desired" ] && next=$desired
+	else
+		next=$((cur - step))
+		[ "$next" -lt "$desired" ] && next=$desired
+	fi
+	echo "$next"
+}
+
+while true; do
+	enabled="$(uci -q get ${CFG}.main.enabled 2>/dev/null || echo 1)"
+	mode="$(uci -q get ${CFG}.main.mode 2>/dev/null || echo smart)"
+	interval="$(uci -q get ${CFG}.main.interval 2>/dev/null || echo 2)"
+	[ -z "$interval" ] && interval=2
+	[ "$interval" -lt 1 ] 2>/dev/null && interval=1
+
+	if [ "$enabled" != "1" ]; then
+		set_pwm 0
+		sleep "$interval"
+		continue
+	fi
+
+	case "$mode" in
+		silent)
+			set_pwm "$(uci -q get ${CFG}.main.silent_pwm 2>/dev/null || echo 20)"
+			;;
+			turbo)
+			set_pwm "$(uci -q get ${CFG}.main.turbo_pwm 2>/dev/null || echo 100)"
+			;;
+			manual)
+			set_pwm "$(uci -q get ${CFG}.main.manual_pwm 2>/dev/null || echo 35)"
+			;;
+			smart|*)
+				temp="$(read_temp)"
+				cur="$(cat "$STATE" 2>/dev/null || uci -q get ${CFG}.main.silent_pwm 2>/dev/null || echo 20)"
+				next="$(calc_smart_pwm \
+					"$temp" \
+					"$(uci -q get ${CFG}.main.smart_target_temp 2>/dev/null || echo 50)" \
+					"$(uci -q get ${CFG}.main.smart_min_pwm 2>/dev/null || echo 15)" \
+					"$(uci -q get ${CFG}.main.smart_max_temp 2>/dev/null || echo 80)" \
+					"$(uci -q get ${CFG}.main.smart_kp 2>/dev/null || echo 3)" \
+					"$(uci -q get ${CFG}.main.smooth_step 2>/dev/null || echo 4)" \
+					"$cur")"
+				set_pwm "$next"
+				;;
+	esac
+
+	sleep "$interval"
+done
